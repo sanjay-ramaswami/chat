@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functional Messenger</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .app-container {
+            width: 450px;
+            height: 700px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .status-online {
+            background: #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+
+        .status-offline {
+            background: #f44336;
+            box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+        }
+
+        .auth-container {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .auth-form input {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .auth-form input:focus {
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .error {
+            color: #f44336;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .user-info {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .messages-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.sent {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .message.sent .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.received .message-bubble {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-info {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        
+        .message.sent .message-info {
+            color: white;
+            opacity: 0.8;
+        }
+
+        .message-status {
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .status-pending { color: #ffeb3b; }
+        .status-sent { color: #cfd8dc; }
+        .status-delivered { color: #81c784; }
+        .status-read { color: #4fc3f7; }
+        .status-failed { color: #e57373; }
+        
+        .date-separator {
+            text-align: center;
+            margin: 20px 0;
+            color: #999;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+        }
+
+        .recipient-selector {
+            margin-bottom: 15px;
+        }
+
+        .recipient-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .user-suggestions {
+            max-height: 120px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .user-suggestion {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-suggestion:hover {
+            background: #f8f9fa;
+        }
+
+        .user-status {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .message-compose {
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            resize: none;
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .notification.error {
+            background: #f44336;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .logout-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>Functional Messenger</h1>
+            <div class="status-indicator" id="statusIndicator"></div>
+        </div>
+        
+        <div id="authContainer" class="auth-container">
+            <div id="loginForm" class="auth-form">
+                <h3>Login to Messenger</h3>
+                <input type="text" id="loginUsername" placeholder="Username" />
+                <input type="password" id="loginPassword" placeholder="Password" />
+                <button class="btn" onclick="app.login()">Login</button>
+                <button class="btn btn-secondary" onclick="app.showRegister()">Create Account</button>
+                <div id="loginError" class="error"></div>
+            </div>
+            
+            <div id="registerForm" class="auth-form" style="display: none;">
+                <h3>Create Account</h3>
+                <input type="text" id="registerUsername" placeholder="Username" />
+                <input type="password" id="registerPassword" placeholder="Password" />
+                <input type="password" id="confirmPassword" placeholder="Confirm Password" />
+                <button class="btn" onclick="app.register()">Create Account</button>
+                <button class="btn btn-secondary" onclick="app.showLogin()">Back to Login</button>
+                <div id="registerError" class="error"></div>
+            </div>
+        </div>
+
+        <div id="chatContainer" class="chat-container" style="display: none;">
+            <div class="user-info">
+                <span>Welcome, <strong id="currentUser"></strong></span>
+                <button class="logout-btn" onclick="app.logout()">Logout</button>
+            </div>
+            
+            <div class="messages-area" id="messagesArea"></div>
+            
+            <div class="input-area">
+                <div class="recipient-selector">
+                    <input type="text" id="recipientInput" class="recipient-input" 
+                           placeholder="Search users..." onkeyup="app.searchUsers()" />
+                    <div id="userSuggestions" class="user-suggestions" style="display: none;"></div>
+                </div>
+                
+                <div class="message-compose">
+                    <textarea id="messageInput" class="message-input" 
+                              placeholder="Type your message..." rows="1"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="app.sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="notification" class="notification"></div>
+
+    <script>
+        class FunctionalMessenger {
+            constructor() {
+                this.socket = null;
+                this.token = localStorage.getItem('messenger_token');
+                this.username = localStorage.getItem('messenger_username');
+                this.messages = [];
+                this.selectedRecipient = '';
+                this.pendingMessages = JSON.parse(localStorage.getItem('pending_messages') || '[]');
+                this.searchTimeout = null;
+                
+                this.init();
+            }
+
+            init() {
+                if (this.token && this.username) {
+                    this.showChatInterface();
+                    this.connectSocket();
+                    this.loadMessages();
+                } else {
+                    this.showAuthInterface();
+                }
+                
+                this.setupEventListeners();
+                this.updateOnlineStatus();
+                
+                window.addEventListener('online', () => this.handleConnectionChange());
+                window.addEventListener('offline', () => this.handleConnectionChange());
+            }
+            
+            handleConnectionChange() {
+                this.updateOnlineStatus();
+                if (navigator.onLine && this.username) {
+                    if (!this.socket || !this.socket.connected) {
+                        this.connectSocket();
+                    }
+                }
+            }
+
+            setupEventListeners() {
+                const messageInput = document.getElementById('messageInput');
+                if (messageInput) {
+                    messageInput.addEventListener('input', (e) => {
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                    });
+                    
+                    messageInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            this.sendMessage();
+                        }
+                    });
+                }
+            }
+
+            async apiCall(endpoint, method = 'GET', body = null) {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                };
+                
+                try {
+                    const options = { method, headers };
+                    if (body) {
+                        options.body = JSON.stringify(body);
+                    }
+                    
+                    const response = await fetch(endpoint, options);
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'API call failed');
+                    }
+                    return data;
+                } catch (error) {
+                    console.error(`Error with ${method} ${endpoint}:`, error);
+                    this.showNotification(error.message, 'error');
+                    throw error;
+                }
+            }
+
+            async login() {
+                const username = document.getElementById('loginUsername').value.trim();
+                const password = document.getElementById('loginPassword').value;
+                const errorElement = document.getElementById('loginError');
+                
+                if (!username || !password) {
+                    errorElement.textContent = 'Please enter username and password';
+                    return;
+                }
+                
+                try {
+                    const data = await this.apiCall('/api/login', 'POST', { username, password });
+                    this.onAuthSuccess(data);
+                } catch (error) {
+                    errorElement.textContent = error.message;
+                }
+            }
+
+            async register() {
+                const username = document.getElementById('registerUsername').value.trim();
+                const password = document.getElementById('registerPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const errorElement = document.getElementById('registerError');
+                
+                if (!username || !password || !confirmPassword) {
+                    errorElement.textContent = 'Please fill in all fields';
+                    return;
+                }
+                if (password !== confirmPassword) {
+                    errorElement.textContent = 'Passwords do not match';
+                    return;
+                }
+                if (password.length < 6) {
+                    errorElement.textContent = 'Password must be at least 6 characters';
+                    return;
+                }
+                
+                try {
+                    const data = await this.apiCall('/api/register', 'POST', { username, password });
+                    this.onAuthSuccess(data);
+                } catch (error) {
+                    errorElement.textContent = error.message;
+                }
+            }
+            
+            onAuthSuccess(data) {
+                this.token = data.token;
+                this.username = data.username;
+                localStorage.setItem('messenger_token', this.token);
+                localStorage.setItem('messenger_username', this.username);
+                
+                this.showChatInterface();
+                this.connectSocket();
+                this.loadMessages();
+            }
+            
+            logout() {
+                localStorage.removeItem('messenger_token');
+                localStorage.removeItem('messenger_username');
+                this.token = null;
+                this.username = null;
+                if (this.socket) {
+                    this.socket.disconnect();
+                }
+                this.showAuthInterface();
+            }
+
+            connectSocket() {
+                if (this.socket && this.socket.connected) return;
+                
+                this.socket = io();
+                
+                this.socket.on('connect', () => {
+                    console.log('Connected to server');
+                    this.socket.emit('user_online', { username: this.username });
+                    this.updateOnlineStatus();
+                    this.syncPendingMessages();
+                });
+                
+                this.socket.on('disconnect', () => {
+                    console.log('Disconnected from server');
+                    this.updateOnlineStatus();
+                });
+                
+                this.socket.on('new_message', (message) => this.receiveMessage(message));
+                this.socket.on('message_delivered', (data) => this.updateMessageStatus(data.messageId, 'delivered'));
+            }
+
+            async loadMessages() {
+                try {
+                    this.messages = await this.apiCall('/api/messages');
+                    // Add status to loaded messages
+                    this.messages.forEach(m => {
+                        if (m.sender === this.username) {
+                            m.status = m.delivered ? 'delivered' : 'sent';
+                        }
+                    });
+                    this.renderMessages();
+                } catch (error) {
+                    console.error('Error loading messages:', error);
+                }
+            }
+
+            async sendMessage() {
+                const messageInput = document.getElementById('messageInput');
+                const content = messageInput.value.trim();
+                
+                if (!content || !this.selectedRecipient) {
+                    this.showNotification(!this.selectedRecipient ? 'Please select a recipient' : 'Message cannot be empty', 'error');
+                    return;
+                }
+                
+                const messageId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                const message = {
+                    messageId,
+                    sender: this.username,
+                    recipient: this.selectedRecipient,
+                    content,
+                    timestamp: new Date().toISOString(),
+                    status: 'pending'
+                };
+                
+                this.messages.push(message);
+                this.renderMessages();
+                
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+                
+                try {
+                    if (!navigator.onLine) throw new Error('Offline');
+                    
+                    const data = await this.apiCall('/api/messages', 'POST', {
+                        recipient: this.selectedRecipient,
+                        content,
+                        messageId
+                    });
+                    
+                    this.updateMessageStatus(messageId, data.message.delivered ? 'delivered' : 'sent');
+                } catch (error) {
+                    this.updateMessageStatus(messageId, 'failed');
+                    this.pendingMessages.push(message);
+                    this.savePendingMessages();
+                }
+            }
+            
+            async syncPendingMessages() {
+                const pending = [...this.pendingMessages];
+                if (pending.length === 0) return;
+                
+                this.pendingMessages = [];
+                this.savePendingMessages();
+                
+                this.showNotification(`Syncing ${pending.length} offline message(s)...`);
+                
+                for (const message of pending) {
+                    try {
+                        const data = await this.apiCall('/api/messages', 'POST', {
+                            recipient: message.recipient,
+                            content: message.content,
+                            messageId: message.messageId
+                        });
+                        this.updateMessageStatus(message.messageId, data.message.delivered ? 'delivered' : 'sent');
+                    } catch (error) {
+                        this.updateMessageStatus(message.messageId, 'failed');
+                        this.pendingMessages.push(message); // Re-add if it failed again
+                        this.savePendingMessages();
+                    }
+                }
+            }
+
+            receiveMessage(message) {
+                const exists = this.messages.find(m => m.messageId === message.messageId);
+                if (!exists) {
+                    this.messages.push({ ...message, status: 'delivered' });
+                    this.renderMessages();
+                    this.showNotification(`New message from ${message.sender}`);
+                }
+            }
+
+            searchUsers() {
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = setTimeout(async () => {
+                    const query = document.getElementById('recipientInput').value.trim();
+                    const suggestionsContainer = document.getElementById('userSuggestions');
+                    
+                    if (query.length < 2) {
+                        suggestionsContainer.style.display = 'none';
+                        return;
+                    }
+                    
+                    try {
+                        const users = await this.apiCall(`/api/users/search?q=${encodeURIComponent(query)}`);
+                        this.renderUserSuggestions(users);
+                    } catch (error) {
+                        console.error('Error searching users:', error);
+                    }
+                }, 300);
+            }
+
+            renderUserSuggestions(users) {
+                const container = document.getElementById('userSuggestions');
+                if (users.length === 0) {
+                    container.style.display = 'none';
+                    return;
+                }
+                
+                container.innerHTML = users.map(user => `
+                    <div class="user-suggestion" onclick="app.selectUser('${user.username}')">
+                        <span>${user.username}</span>
+                        <span class="user-status">${user.isOnline ? 'Online' : 'Offline'}</span>
+                    </div>
+                `).join('');
+                
+                container.style.display = 'block';
+            }
+
+            selectUser(username) {
+                this.selectedRecipient = username;
+                document.getElementById('recipientInput').value = username;
+                document.getElementById('userSuggestions').style.display = 'none';
+                document.getElementById('messageInput').focus();
+            }
+
+            updateMessageStatus(messageId, status) {
+                const messageIndex = this.messages.findIndex(m => m.messageId === messageId);
+                if (messageIndex !== -1) {
+                    this.messages[messageIndex].status = status;
+                    const el = document.querySelector(`[data-message-id="${messageId}"]`);
+                    if (el) {
+                        const statusEl = el.querySelector('.message-status');
+                        if (statusEl) {
+                           statusEl.innerHTML = this.getStatusIcon(status);
+                           statusEl.className = `message-status status-${status}`;
+                        }
+                    }
+                }
+            }
+
+            getStatusIcon(status) {
+                switch (status) {
+                    case 'pending': return '⏳';
+                    case 'sent': return '✓';
+                    case 'delivered': return '✓✓';
+                    case 'read': return '✓✓'; // You can use a different icon for read
+                    case 'failed': return '✗';
+                    default: return '';
+                }
+            }
+
+            renderMessages() {
+                const container = document.getElementById('messagesArea');
+                if (!container) return;
+
+                let html = '';
+                let lastDate = null;
+
+                this.messages
+                    .filter(msg => (msg.sender === this.username && msg.recipient === this.selectedRecipient) || (msg.sender === this.selectedRecipient && msg.recipient === this.username))
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                    .forEach(message => {
+                        const messageDate = new Date(message.timestamp).toDateString();
+                        if (messageDate !== lastDate) {
+                            html += `<div class="date-separator">${this.formatDate(messageDate)}</div>`;
+                            lastDate = messageDate;
+                        }
+
+                        const isSent = message.sender === this.username;
+                        const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        
+                        let statusIcon = '';
+                        if (isSent) {
+                            statusIcon = `<span class="message-status status-${message.status}">${this.getStatusIcon(message.status)}</span>`;
+                        }
+                        
+                        html += `
+                            <div class="message ${isSent ? 'sent' : 'received'}" data-message-id="${message.messageId}">
+                                <div class="message-bubble">
+                                    ${message.content.replace(/\n/g, '<br>')}
+                                    <div class="message-info">
+                                        <span>${time}</span>
+                                        ${statusIcon}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                });
+                
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            }
+            
+            formatDate(dateStr) {
+                const date = new Date(dateStr);
+                const today = new Date();
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+
+                if (date.toDateString() === today.toDateString()) return 'Today';
+                if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                return date.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            }
+
+            // UI State Management
+            showAuthInterface() {
+                document.getElementById('authContainer').style.display = 'block';
+                document.getElementById('chatContainer').style.display = 'none';
+            }
+
+            showChatInterface() {
+                document.getElementById('authContainer').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'flex';
+                document.getElementById('currentUser').textContent = this.username;
+            }
+
+            showLogin() {
+                document.getElementById('loginForm').style.display = 'flex';
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('registerError').textContent = '';
+            }
+
+            showRegister() {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('registerForm').style.display = 'flex';
+                document.getElementById('loginError').textContent = '';
+            }
+
+            updateOnlineStatus() {
+                const indicator = document.getElementById('statusIndicator');
+                const isOnline = navigator.onLine && this.socket && this.socket.connected;
+                indicator.className = `status-indicator ${isOnline ? 'status-online' : 'status-offline'}`;
+                indicator.title = isOnline ? 'Online' : 'Offline';
+            }
+            
+            showNotification(message, type = 'success') {
+                const notification = document.getElementById('notification');
+                notification.textContent = message;
+                notification.className = `notification show ${type}`;
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+            
+            savePendingMessages() {
+                localStorage.setItem('pending_messages', JSON.stringify(this.pendingMessages));
+            }
+        }
+
+        const app = new FunctionalMessenger();
+    </script>
+</body>
+</html>
